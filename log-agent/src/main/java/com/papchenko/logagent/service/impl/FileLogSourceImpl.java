@@ -92,7 +92,7 @@ public class FileLogSourceImpl implements LogSource<FileLogSourceImpl.FileLogSou
 
     private void processDirModificationEvent(WatchKey watchKey, Path parentDirPath) {
         watchKey.pollEvents().stream().forEach(watchEvent -> {
-            Path pathOfChangedFile = (Path) watchEvent;
+            Path pathOfChangedFile = (Path) watchEvent.context();
 
             Optional<LogSourceMetaData> logSourceMetaData = getByParentAndFilePath(parentDirPath, pathOfChangedFile);
 
@@ -109,7 +109,16 @@ public class FileLogSourceImpl implements LogSource<FileLogSourceImpl.FileLogSou
 
 
     private Optional<LogSourceMetaData> getByParentAndFilePath(Path parentDir, Path filePath) {
-        return parentPathToLogSources.get(parentDir).stream().filter(logSourceMetaData ->
-                logSourceMetaData.getFileLogSource().getLogPath().equals(filePath)).findFirst();
+        Set<LogSourceMetaData> logSourceMeta = parentPathToLogSources.get(parentDir);
+        if (Objects.isNull(logSourceMeta)) {
+            return Optional.empty();
+        }
+
+        return parentPathToLogSources
+                .get(parentDir)
+                .stream()
+                .filter(logSourceMetaData ->
+                logSourceMetaData.getFileLogSource().getLogPath().endsWith(filePath.getFileName()))
+                .findFirst();
     }
 }

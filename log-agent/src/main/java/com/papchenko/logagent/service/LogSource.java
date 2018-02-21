@@ -17,4 +17,15 @@ public interface LogSource<T> {
      * @param logSource - log source to be watched
      */
     void addLogSource(T logSource);
+
+    /**
+     * Removes all log sources
+     */
+    void clear();
+
+    /**
+     * Clear watch for log source with provided log source key
+     * @param key - log source key
+     */
+    void clear(String key);
 }

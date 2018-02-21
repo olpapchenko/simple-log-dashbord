@@ -1,51 +1,29 @@
 package com.papchenko.logagent.service.impl;
 
 import com.papchenko.logagent.service.LogSource;
+import com.papchenko.logagent.service.entity.FileLogSource;
+import com.papchenko.logagent.service.entity.LogSourceMetaData;
 import com.papchenko.logagent.utils.FilesUtils;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @Service
-public class FileLogSourceImpl implements LogSource<FileLogSourceImpl.FileLogSource> {
+public class FileLogSourceImpl implements LogSource<FileLogSource> {
 
     private Executor executor;
-    private Map<Path, Set<LogSourceMetaData>> parentPathToLogSources = new HashMap<>();
+    private Map<Path, Set<LogSourceMetaData>> parentPathToLogSources = new ConcurrentHashMap<>();
 
     public FileLogSourceImpl() {
         executor = Executors.newSingleThreadExecutor();
     }
 
-    @Getter
-    @EqualsAndHashCode
-    public static class FileLogSource {
-        private Path logPath;
-        private List<Consumer<List<String>>> onModification = new ArrayList<>();
-
-        public FileLogSource(Path logPath, Consumer<List<String>> onModification) {
-            this.logPath = logPath;
-            this.onModification.add(onModification);
-        }
-    }
-
-    @Data
-    private static class LogSourceMetaData {
-        private long offset;
-        private FileLogSource FileLogSource;
-
-        public LogSourceMetaData(FileLogSource fileLogSource) {
-            FileLogSource = fileLogSource;
-            offset = FilesUtils.getFileLinesCount(fileLogSource.getLogPath());
-        }
-    }
 
     @Override
     public String getLogContent(String key, int offset, int size) {
@@ -57,9 +35,61 @@ public class FileLogSourceImpl implements LogSource<FileLogSourceImpl.FileLogSou
         startWatchLogFile(logSource);
     }
 
+    @Override
+    public void clear() {
+        List<Path> paths = getAllLogSourceMetaDatas().stream()
+                .map(LogSourceMetaData::getFileLogSource)
+                .map(FileLogSource::getLogPath)
+                .collect(Collectors.toList());
+
+        paths.forEach(this::clear);
+    }
+
+    @Override
+    public void clear(String key) {
+        Path path = Paths.get(key);
+        clear(path);
+    }
+
+    private void clear(Path path) {
+        Set<LogSourceMetaData> logSourceMetaDatas = parentPathToLogSources.get(path.getParent());
+
+        Optional<LogSourceMetaData> logMetaData = logSourceMetaDatas.stream()
+                .filter(logSourceMetaData -> logSourceMetaData.getFileLogSource().getLogPath().equals(path))
+                .findFirst();
+
+        logMetaData.ifPresent(logSourceMetaData -> {
+            logSourceMetaDatas.remove(logSourceMetaData);
+
+            if (logSourceMetaDatas.isEmpty()) {
+                logSourceMetaData.getWatchKey().cancel();
+                parentPathToLogSources.remove(path.getParent());
+            }
+        });
+    }
+
+    private List<LogSourceMetaData> getAllLogSourceMetaDatas() {
+        return parentPathToLogSources
+                .entrySet()
+                .stream()
+                .flatMap(pathSetEntry -> pathSetEntry.getValue()
+                        .stream())
+                .collect(Collectors.toList());
+    }
+
     private void startWatchLogFile(FileLogSource logSource) {
-        if (parentPathToLogSources.containsKey(logSource.getLogPath().getParent())) {
-            parentPathToLogSources.get(logSource.getLogPath()).add(new LogSourceMetaData(logSource));
+        Path parent = logSource.getLogPath().getParent();
+
+        if (parentPathToLogSources.isEmpty()) {
+            startWatchLoop();
+        }
+
+        if (parentPathToLogSources.containsKey(parent)) {
+            Set<LogSourceMetaData> logSourceMetaDatas = parentPathToLogSources.get(parent);
+            WatchKey watchKey = logSourceMetaDatas.iterator().next().getWatchKey();
+            LogSourceMetaData logMetaData = new LogSourceMetaData(logSource);
+            logMetaData.setWatchKey(watchKey);
+            logSourceMetaDatas.add(logMetaData);
         } else {
             startWatchNewLogDirectory(logSource);
         }
@@ -67,25 +97,42 @@ public class FileLogSourceImpl implements LogSource<FileLogSourceImpl.FileLogSou
 
     private void startWatchNewLogDirectory(FileLogSource logSourceParams) {
         HashSet<LogSourceMetaData> logSources = new HashSet<>();
-        logSources.add(new LogSourceMetaData(logSourceParams));
+         LogSourceMetaData logMetaData = new LogSourceMetaData(logSourceParams);
+        logSources.add(logMetaData);
         Path parentDir = logSourceParams.getLogPath().getParent();
         parentPathToLogSources.put(parentDir,  logSources);
+        try (final WatchService watchService = FileSystems.getDefault().newWatchService()) {
 
+            final WatchKey watchKey = parentDir.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
+            logMetaData.setWatchKey(watchKey);
+            logMetaData.setWatchService(watchService);
+
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void startWatchLoop() {
         executor.execute(() -> {
-            try (final WatchService watchService = FileSystems.getDefault().newWatchService()) {
-                final WatchKey watchKey = parentDir.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
-
-                while (true) {
+            while (true) {
+                try {
                     Thread.sleep(1000);
-                    WatchKey wk = watchService.poll();
-
-                    while (Objects.nonNull(wk)) {
-                        processDirModificationEvent(watchKey, parentDir);
-                        wk = watchService.poll();
-                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException(e);
+
+                getAllLogSourceMetaDatas()
+                        .stream()
+                        .forEach(metaData -> {
+                            WatchService watchService = metaData.getWatchService();
+                            WatchKey wk = watchService.poll();
+
+                            while (Objects.nonNull(wk)) {
+                                processDirModificationEvent(wk, (metaData.getFileLogSource().getLogPath().getParent()));
+                                wk = watchService.poll();
+                            }
+                        });
             }
         });
     }

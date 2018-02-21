@@ -21,7 +21,7 @@ public interface LogSource<T> {
     /**
      * Removes all log sources
      */
-    void clear();
+    void clearAll();
 
     /**
      * Clear watch for log source with provided log source key

@@ -38,7 +38,7 @@ public class FileLogSourceTest {
         clearFile(getTextFilePath1());
         clearFile(getTextFilePath2());
 
-        fileLogSource.clear();
+        fileLogSource.clearAll();
     }
 
     @Test

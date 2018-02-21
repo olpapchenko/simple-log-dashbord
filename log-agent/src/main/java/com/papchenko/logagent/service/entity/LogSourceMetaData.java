@@ -4,8 +4,6 @@ import com.papchenko.logagent.utils.FilesUtils;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
 import java.util.Objects;
 
 @Getter
@@ -13,8 +11,6 @@ import java.util.Objects;
 public class LogSourceMetaData {
     private long offset;
     private FileLogSource FileLogSource;
-    private WatchKey watchKey;
-    private WatchService watchService;
 
     public LogSourceMetaData(FileLogSource fileLogSource) {
         FileLogSource = fileLogSource;

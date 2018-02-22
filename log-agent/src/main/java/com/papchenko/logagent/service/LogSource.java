@@ -1,7 +1,5 @@
 package com.papchenko.logagent.service;
 
-import java.util.function.Consumer;
-
 public interface LogSource<T> {
     /**
      * Returns next portion of text log data

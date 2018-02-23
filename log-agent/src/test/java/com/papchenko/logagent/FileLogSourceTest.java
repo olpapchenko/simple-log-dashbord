@@ -17,6 +17,7 @@ import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.junit.Assert.*;
 
@@ -100,6 +101,30 @@ public class FileLogSourceTest {
 
         assertFalse(invokedCallbacks[0]);
         assertFalse(invokedCallbacks[1]);
+    }
+
+    @Test
+    public void intensiveWritesTest() throws InterruptedException {
+        List<String> actual = new ArrayList<>();
+        List<String> expected = new ArrayList<>();
+
+        fileLogSource.addLogSource(new FileLogSource(getTextFilePath1(), strings -> {
+            actual.addAll(strings);
+        }));
+
+        IntStream.range(1, 300).forEach(value -> {
+            try {
+                String s = String.valueOf(value);
+                expected.add(s);
+                Files.write(getTextFilePath1(), Arrays.asList(s), StandardOpenOption.APPEND);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+
+        Thread.sleep(1000);
+        assertEquals(expected, actual);
     }
 
     private void clearFile(Path file) {

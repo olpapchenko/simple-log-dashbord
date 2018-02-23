@@ -158,6 +158,8 @@ public class FileLogSourceImpl implements LogSource<FileLogSource> {
                 List<String> strings = FilesUtils
                         .readLines(metaData.getOffset(), metaData.getFileLogSource().getLogPath());
 
+                metaData.setOffset(metaData.getOffset() + strings.size());
+
                 if (CollectionUtils.isEmpty(strings)) {
                     return;
                 }
@@ -167,6 +169,8 @@ public class FileLogSourceImpl implements LogSource<FileLogSource> {
                 });
             });
         });
+
+        watchKey.reset();
     }
 
     private List<LogSourceMetaData> getAllLogSources() {

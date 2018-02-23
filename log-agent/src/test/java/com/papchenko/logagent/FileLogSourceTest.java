@@ -13,15 +13,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
@@ -61,22 +58,25 @@ public class FileLogSourceTest {
 
     @Test
     public void testNonEmptyFile() throws IOException, InterruptedException {
-        List<String> expectedStrings = Arrays.asList("1", "2");
-        List<String>[] actualStrings = new List [1];
+        List<String> expectedStrings = Arrays.asList("1", "2", "5", "6");
+        List<String> actualStrings = new ArrayList<>();
         Files.write(getTextFilePath1(), expectedStrings,  StandardOpenOption.APPEND);
 
         fileLogSource.addLogSource(new FileLogSource(getTextFilePath1(), strings -> {
-            actualStrings[0] = strings;
+            actualStrings.addAll(strings);
         }));
 
-        Thread.sleep(500);
+        Thread.sleep(100);
 
-        Files.write(getTextFilePath1(), expectedStrings,  StandardOpenOption.APPEND);
+        Files.write(getTextFilePath1(),  Arrays.asList(expectedStrings.get(0), expectedStrings.get(1)),
+                StandardOpenOption.APPEND);
 
-        Thread.sleep(1500);
+        Files.write(getTextFilePath1(), Arrays.asList(expectedStrings.get(2), expectedStrings.get(3)),
+                StandardOpenOption.APPEND);
 
-        assertNotNull(actualStrings[0]);
-        assertEquals(expectedStrings, actualStrings[0]);
+        Thread.sleep(1200);
+        assertNotEquals(0, actualStrings.size());
+        assertEquals(expectedStrings, actualStrings);
     }
 
     @Test

@@ -1,23 +1,27 @@
 package com.papchenko.logagent.service.impl;
 
+import com.google.common.hash.Hashing;
 import com.papchenko.logagent.service.LogSource;
 import com.papchenko.logagent.service.WatchRegistrationService;
 import com.papchenko.logagent.service.entity.FileLogSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.handler.annotation.SendTo;
+import org.springframework.stereotype.Controller;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.HashSet;
 import java.util.Set;
 
 @Slf4j
+@Controller
 public class WatchFileRegistrationServiceImpl implements WatchRegistrationService<Path> {
 
     @Autowired
     private LogSource<FileLogSource> logSource;
 
     private Set<Path> watchedPaths = new HashSet<>();
-
     @Override
     public synchronized String registerNewWatchedFile(Path file) {
         if (!Files.exists(file)) {
@@ -31,9 +35,16 @@ public class WatchFileRegistrationServiceImpl implements WatchRegistrationServic
             log.info("new file is registered for watching");
         }
 
-        return String.valueOf(file.hashCode());
+        return Hashing
+                .sha256()
+                .hashString(file.toString().toLowerCase(), StandardCharsets.UTF_8)
+                .toString();
     }
 
+    @SendTo("/topic/change/{id}")
+    public void fileChanged() {
+
+    }
 
     private  void registerNewFile(Path path) {
 

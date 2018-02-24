@@ -30,9 +30,17 @@ public class WatchController {
             Path file = Paths.get(path);
             return ResponseEntity.ok(watchRegistrationService.registerNewWatchedFile(file));
         } catch (InvalidPathException e) {
+            log.warn("path does not exist {}", path);
             return ResponseEntity.badRequest().body("Path does not exists");
         } catch (RegistrationException e) {
+            log.warn("failed to register path " + path, e);
             return ResponseEntity.badRequest().body("failed to register file for watching");
         }
+    }
+
+    @PutMapping("/{id}")
+    public void notifyLogChangeConsumed(@PathParam("id") String id) {
+        watchRegistrationService.notifyMessageConsumed(id);
+        log.debug("change consumed {}", id);
     }
 }

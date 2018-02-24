@@ -4,12 +4,12 @@ import com.papchenko.logwebdashbord.dto.LogSourceDto;
 
 import java.util.List;
 
-public interface LogSource {
+public interface LogSourceService {
     void save(LogSourceDto logSourceDto);
 
     void update(LogSourceDto logSourceDto);
 
-    List<LogSourceDto> getAllLogResources();
+    List<LogSourceDto> getAllLog();
 
-    void removeResource(Long id);
+    void remove(Long id);
 }

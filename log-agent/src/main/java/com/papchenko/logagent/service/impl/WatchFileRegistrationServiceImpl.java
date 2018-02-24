@@ -8,7 +8,6 @@ import com.papchenko.logagent.service.entity.FileLogSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
@@ -63,11 +62,11 @@ public class WatchFileRegistrationServiceImpl implements WatchRegistrationServic
     }
 
     @Override
-    public void notifyMessageConsumed(String logId) {
+    public synchronized void notifyMessageConsumed(String logId) {
         changedFiles.removeIf(path -> getWatchedFileId(path).equals(logId));
     }
 
-    private void notifyFileChanged(List<String> data, @DestinationVariable("id") String id) {
+    private void notifyFileChanged(List<String> data, String id) {
         simpMessagingTemplate.convertAndSend(String.format(topicPattern, id), new LogSourceUpdateDto(id, data));
     }
 
@@ -110,13 +109,15 @@ public class WatchFileRegistrationServiceImpl implements WatchRegistrationServic
     private void registerNewFile(Path path) {
 
         log.info("registering new file for watching");
-        logSource.addLogSource(new FileLogSource(path, strings -> {
-            changedFiles.add(path);
-            notifyFileChanged(strings, getWatchedFileId(path));
-        }));
+        logSource.addLogSource(new FileLogSource(path, strings -> handleFileChange(path, strings)));
     }
 
-    private String getWatchedFileId(Path path) {
+    private synchronized void handleFileChange(Path changedPath, List<String> strings) {
+        changedFiles.add(changedPath);
+        notifyFileChanged(strings, getWatchedFileId(changedPath));
+    }
+
+    private static String getWatchedFileId(Path path) {
         return Hashing
                 .sha256()
                 .hashString(path.toString().toLowerCase(), StandardCharsets.UTF_8)

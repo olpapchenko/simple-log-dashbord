@@ -30,8 +30,8 @@ public class LogSourceServiceImpl implements LogSourceService {
     @Autowired
     private RestTemplate restTemplate;
 
-    @Value("health.check.interval:1000")
-    private Long healthCheckInterval;
+    @Value("${health.check.interval:1000}")
+    private long healthCheckInterval;
 
     @Override
     public void save(LogSourceDto logSourceDto) {

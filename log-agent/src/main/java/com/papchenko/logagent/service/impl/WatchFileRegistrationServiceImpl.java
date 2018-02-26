@@ -30,7 +30,7 @@ public class WatchFileRegistrationServiceImpl implements WatchRegistrationServic
     private Set<Path> changedFiles = new HashSet<>();
     private AtomicBoolean cleanLoopStarted = new AtomicBoolean();
 
-    private static final String topicPattern = "/topic/change/%s";
+    private static final String TOPIC_PATTERN = "/topic/change/%s";
 
     @Value("${clear.timeout:10000}")
     private Long clearTimeout;
@@ -67,7 +67,7 @@ public class WatchFileRegistrationServiceImpl implements WatchRegistrationServic
     }
 
     private void notifyFileChanged(List<String> data, String id) {
-        simpMessagingTemplate.convertAndSend(String.format(topicPattern, id), new LogSourceUpdateDto(id, data));
+        simpMessagingTemplate.convertAndSend(String.format(TOPIC_PATTERN, id), new LogSourceUpdateDto(id, data));
     }
 
     @PostConstruct

@@ -4,11 +4,14 @@ import lombok.Getter;
 import lombok.Setter;
 
 import javax.persistence.*;
+
+import java.util.List;
 import java.util.Objects;
 
 @Entity
 @Getter
 @Setter
+@Table(name = "LOG_SOURCE_ENTITIES")
 public class LogSourceEntity {
 
     @Id
@@ -18,11 +21,17 @@ public class LogSourceEntity {
     @Column(name = "NAME")
     private String name;
 
-    @Column(name = "URL")
+    @Column(name = "URL", nullable = false)
     private String url;
 
     @Column(name = "STATUS")
     private boolean status;
+
+    @OneToOne(mappedBy = "logSourceEntity", cascade = CascadeType.ALL)
+    private WatchFileEntity watchFileEntity;
+
+    @OneToMany(mappedBy = "logSourceEntity", cascade = CascadeType.ALL)
+    private List<TextAlertEntity> textAlertEntities;
 
     @Override
     public boolean equals(Object o) {

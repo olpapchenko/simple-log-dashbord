@@ -8,6 +8,9 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class LogSourceUpdateDto {
+	public LogSourceUpdateDto() {
+	}
+
 	private String key;
 	private List<String> strings;
 }

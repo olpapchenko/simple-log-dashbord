@@ -16,12 +16,15 @@ import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.concurrent.ListenableFuture;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.socket.client.WebSocketClient;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 
 import com.papchenko.logwebdashbord.dto.LogSourceUpdateDto;
+import com.papchenko.logwebdashbord.entity.LogSourceEntity;
 import com.papchenko.logwebdashbord.entity.WatchFileEntity;
+import com.papchenko.logwebdashbord.repository.LogAgentRepository;
 import com.papchenko.logwebdashbord.repository.WatchFileRepository;
 import com.papchenko.logwebdashbord.service.AgentMessagingService;
 import com.papchenko.logwebdashbord.service.LogContentAlert;
@@ -40,6 +43,12 @@ public class AgentMessagingServiceImpl implements AgentMessagingService {
 
 	@Autowired
 	private WatchFileRepository watchFileRepository;
+
+	@Autowired
+	private RestTemplate restTemplate;
+
+	@Autowired
+	private LogAgentRepository logAgentRepository;
 
 	@Override
 	public void connectAgent(Long agentId, String url) {
@@ -80,6 +89,7 @@ public class AgentMessagingServiceImpl implements AgentMessagingService {
 			throw new RuntimeException(e);
 		}
 
+		LogSourceEntity agent = logAgentRepository.findOne(agentId);
 		stompSession.subscribe(String.format(TOPIC_PATTERN, logFileKey),
 				new StompFrameHandler() {
 					@Override
@@ -91,6 +101,7 @@ public class AgentMessagingServiceImpl implements AgentMessagingService {
 					public void handleFrame(StompHeaders stompHeaders, Object o) {
 						LogSourceUpdateDto updateDto = (LogSourceUpdateDto) o;
 						runAlerts(updateDto);
+						restTemplate.put(agent.getUrl() + "/" + logFileKey, new Object());
 					}
 				});
 	}

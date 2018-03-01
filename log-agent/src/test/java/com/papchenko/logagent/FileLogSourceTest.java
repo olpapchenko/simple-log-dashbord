@@ -25,16 +25,15 @@ import static org.junit.Assert.*;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 public class FileLogSourceTest {
 
-    private static final String testFilePath1 = "testLogFIle1.txt";
-    private static final String testFilePath2 = "testLogFIle2.txt";
+    TestUtils testUtils = new TestUtils();
 
     @Autowired
     private LogSource<FileLogSource> fileLogSource;
 
     @After
     public void clearFile() {
-        clearFile(getTextFilePath1());
-        clearFile(getTextFilePath2());
+        testUtils.clearFile(testUtils.getTextFilePath1());
+        testUtils.clearFile(testUtils.getTextFilePath2());
 
         fileLogSource.clearAll();
     }
@@ -45,11 +44,11 @@ public class FileLogSourceTest {
         List<String> expectedStrings = Arrays.asList("1", "2");
         List<String>[] actualStrings = new List [1];
 
-        fileLogSource.addLogSource(new FileLogSource(getTextFilePath1(), strings -> {
+        fileLogSource.addLogSource(new FileLogSource(TestUtils.getTextFilePath1(), strings -> {
             actualStrings[0] = strings;
         }));
 
-        Files.write(getTextFilePath1(), expectedStrings,  StandardOpenOption.APPEND);
+        Files.write(TestUtils.getTextFilePath1(), expectedStrings,  StandardOpenOption.APPEND);
 
         Thread.sleep(1500);
 
@@ -61,18 +60,18 @@ public class FileLogSourceTest {
     public void testNonEmptyFile() throws IOException, InterruptedException {
         List<String> expectedStrings = Arrays.asList("1", "2", "5", "6");
         List<String> actualStrings = new ArrayList<>();
-        Files.write(getTextFilePath1(), expectedStrings,  StandardOpenOption.APPEND);
+        Files.write(TestUtils.getTextFilePath1(), expectedStrings,  StandardOpenOption.APPEND);
 
-        fileLogSource.addLogSource(new FileLogSource(getTextFilePath1(), strings -> {
+        fileLogSource.addLogSource(new FileLogSource(TestUtils.getTextFilePath1(), strings -> {
             actualStrings.addAll(strings);
         }));
 
         Thread.sleep(100);
 
-        Files.write(getTextFilePath1(),  Arrays.asList(expectedStrings.get(0), expectedStrings.get(1)),
+        Files.write(TestUtils.getTextFilePath1(),  Arrays.asList(expectedStrings.get(0), expectedStrings.get(1)),
                 StandardOpenOption.APPEND);
 
-        Files.write(getTextFilePath1(), Arrays.asList(expectedStrings.get(2), expectedStrings.get(3)),
+        Files.write(TestUtils.getTextFilePath1(), Arrays.asList(expectedStrings.get(2), expectedStrings.get(3)),
                 StandardOpenOption.APPEND);
 
         Thread.sleep(1200);
@@ -84,20 +83,20 @@ public class FileLogSourceTest {
     public void testRemoveEntry() throws IOException {
         boolean [] invokedCallbacks = new boolean[2];
 
-        fileLogSource.addLogSource(new FileLogSource(getTextFilePath1(), strings -> {
+        fileLogSource.addLogSource(new FileLogSource(TestUtils.getTextFilePath1(), strings -> {
             invokedCallbacks[0] = true;
         }));
 
 
-        fileLogSource.addLogSource(new FileLogSource(getTextFilePath2(), strings -> {
+        fileLogSource.addLogSource(new FileLogSource(testUtils.getTextFilePath2(), strings -> {
             invokedCallbacks[1] = true;
         }));
 
-        fileLogSource.clear(getTextFilePath1().toString());
-        fileLogSource.clear(getTextFilePath2().toString());
+        fileLogSource.clear(testUtils.getTextFilePath1().toString());
+        fileLogSource.clear(testUtils.getTextFilePath2().toString());
 
-        Files.write(getTextFilePath1(), Arrays.asList("1"),  StandardOpenOption.APPEND);
-        Files.write(getTextFilePath2(), Arrays.asList("1"),  StandardOpenOption.APPEND);
+        Files.write(testUtils.getTextFilePath1(), Arrays.asList("1"),  StandardOpenOption.APPEND);
+        Files.write(testUtils.getTextFilePath2(), Arrays.asList("1"),  StandardOpenOption.APPEND);
 
         assertFalse(invokedCallbacks[0]);
         assertFalse(invokedCallbacks[1]);
@@ -108,7 +107,7 @@ public class FileLogSourceTest {
         List<String> actual = new ArrayList<>();
         List<String> expected = new ArrayList<>();
 
-        fileLogSource.addLogSource(new FileLogSource(getTextFilePath1(), strings -> {
+        fileLogSource.addLogSource(new FileLogSource(TestUtils.getTextFilePath1(), strings -> {
             actual.addAll(strings);
         }));
 
@@ -116,7 +115,7 @@ public class FileLogSourceTest {
             try {
                 String s = String.valueOf(value);
                 expected.add(s);
-                Files.write(getTextFilePath1(), Arrays.asList(s), StandardOpenOption.APPEND);
+                Files.write(TestUtils.getTextFilePath1(), Arrays.asList(s), StandardOpenOption.APPEND);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -127,25 +126,7 @@ public class FileLogSourceTest {
         assertEquals(expected, actual);
     }
 
-    private void clearFile(Path file) {
-        try(PrintWriter writer = new PrintWriter(file.toFile())) {
-            writer.write("");
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
-    private Path getTextFilePath1() {
-        ClassLoader classLoader = getClass().getClassLoader();
-        File file = new File(classLoader.getResource(testFilePath1).getFile());
 
-        return file.toPath();
-    }
-
-    private Path getTextFilePath2() {
-        ClassLoader classLoader = getClass().getClassLoader();
-        File file = new File(classLoader.getResource(testFilePath2).getFile());
-
-        return file.toPath();
-    }
+ 
 }

@@ -8,6 +8,9 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 public class LogSourceUpdateDto {
+    public LogSourceUpdateDto() {
+    }
+
     private String id;
     private List<String> strings;
 }

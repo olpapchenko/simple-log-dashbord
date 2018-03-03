@@ -8,7 +8,6 @@ import com.papchenko.logagent.service.entity.FileLogSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.messaging.core.MessageSendingOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
@@ -47,7 +46,7 @@ public class WatchFileRegistrationServiceImpl implements WatchRegistrationServic
     }
 
     @Override
-    public synchronized String registerNewWatchedFile(Path file) {
+    public synchronized String registerWatchedFile(Path file) {
         if (!Files.exists(file)) {
             log.warn("file does not exist {}", file.toString());
             throw new RegistrationException("file does not exist " + file.toString());
@@ -56,18 +55,23 @@ public class WatchFileRegistrationServiceImpl implements WatchRegistrationServic
         if (!watchedPaths.contains(file)) {
             registerNewFile(file);
             watchedPaths.add(file);
-            log.info("new file is registered for watching");
+            log.info("new file is registered for watching {}", getWatchedFileId(file));
+        } else {
+            log.info("file is already watched by service returning existing file key {}", getWatchedFileId(file));
         }
 
         return getWatchedFileId(file);
     }
 
     @Override
-    public synchronized void notifyMessageConsumed(String logId) {
-        changedFiles.removeIf(path -> getWatchedFileId(path).equals(logId));
+    public synchronized void notifyMessageConsumed(String key) {
+        log.info("notified messages consumed for key {}", key);
+        changedFiles.removeIf(path -> getWatchedFileId(path).equals(key));
+        log.info("changed files still for cleaning {}", changedFiles.size());
     }
 
     private void notifyFileChanged(List<String> data, String id) {
+        log.info("notify for file changed: {}", id);
         simpMessagingTemplate.convertAndSend(String.format(TOPIC_PATTERN, id), new LogSourceUpdateDto(id, data));
     }
 
@@ -101,6 +105,7 @@ public class WatchFileRegistrationServiceImpl implements WatchRegistrationServic
     }
 
     private synchronized void clearUnusedWatchPaths() {
+        log.info("clearing unused watch files count {}", changedFiles.size());
         changedFiles.forEach(path -> logSource.clear(path.toString()));
         watchedPaths.removeAll(changedFiles);
         changedFiles.clear();
@@ -108,7 +113,6 @@ public class WatchFileRegistrationServiceImpl implements WatchRegistrationServic
 
 
     private void registerNewFile(Path path) {
-
         log.info("registering new file for watching");
         logSource.addLogSource(new FileLogSource(path, strings -> handleFileChange(path, strings)));
     }

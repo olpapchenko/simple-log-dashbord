@@ -7,6 +7,7 @@ import com.papchenko.logagent.utils.FilesUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -21,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class FileLogSourceImpl implements LogSource<FileLogSource> {
 
     private AtomicBoolean watchLoopStarted = new AtomicBoolean(false);
@@ -165,6 +167,7 @@ public class FileLogSourceImpl implements LogSource<FileLogSource> {
                 }
 
                 metaData.getFileLogSource().getOnModification().forEach(callback -> {
+                    log.info("execution watch callbacks");
                     callback.accept(strings);
                 });
             });

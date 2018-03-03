@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -45,9 +46,10 @@ import com.papchenko.logagent.dto.LogSourceUpdateDto;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Slf4j
 public class MessagingIntegrationTest {
 
-	private TestUtils testUtils = new TestUtils();
+	public static final int TIMEOUT = 2;
 
 	@LocalServerPort
 	private int port;
@@ -63,6 +65,7 @@ public class MessagingIntegrationTest {
 
 	@Before
 	public void setup() {
+		log.info("test setup");
 		Transport webSocketTransport = new WebSocketTransport(new StandardWebSocketClient());
 		List<Transport> transports = Collections.singletonList(webSocketTransport);
 
@@ -73,45 +76,47 @@ public class MessagingIntegrationTest {
 	}
 
 	@After
-	public void clean() {
-		testUtils.clearFile(testUtils.getTextFilePath1());
-		testUtils.clearFile(testUtils.getTextFilePath2());
+	public void clean() throws InterruptedException {
+		Thread.sleep(500);
 	}
 
-
 	@Test
-	public void testConnect() throws InterruptedException {
+	public void testConnect() throws InterruptedException, ExecutionException {
 
 		CountDownLatch countDownLatch = new CountDownLatch(1);
 
-		this.socketStompClient.connect("ws://localhost:{port}/messaging/",
+		ListenableFuture<StompSession> stompSession = this.socketStompClient.connect("ws://localhost:{port}/messaging/",
 				this.headers,
 				new SessionHandler(countDownLatch), this.port);
 
-		if (!countDownLatch.await(2, TimeUnit.SECONDS)) {
+
+		if (!countDownLatch.await(TIMEOUT, TimeUnit.SECONDS)) {
+			stompSession.wait(1000);
+			stompSession.get().disconnect();
 			throw new AssertionError("Connection was not established");
 		}
+
+		stompSession.get().disconnect();
 	}
 
 	@Test
 	public void testClientNotifiedOnFileChange() throws IOException, InterruptedException, ExecutionException {
-		RestTemplate resetTemplate = restTemplateBuilder.build();
-		CountDownLatch countDownLatch = new CountDownLatch(2);
-
-
-		String key = resetTemplate.postForObject("http://localhost:{port}/watch", TestUtils.getTextFilePath1().toString(), String.class, this.port);
+		CountDownLatch countDownLatch = new CountDownLatch(1);
+		String key = sendFileWatchRequest();
 
 		ListenableFuture<StompSession> session = this.socketStompClient.connect("ws://localhost:{port}/messaging/",
 				this.headers, new SessionHandler(countDownLatch, key), this.port);
 
-		Thread.sleep(2500);
+		if (!countDownLatch.await(TIMEOUT, TimeUnit.SECONDS)) {
+			alertConnectionWasNotEstablished();
+		}
+
 		List<String> expected = new ArrayList<>();
 		expected.addAll(Arrays.asList("1", "2", "3"));
-		Files.write(TestUtils.getTextFilePath1(), expected);
 
-		if (!countDownLatch.await(2, TimeUnit.SECONDS)) {
-			throw new AssertionError("Update of file was not received");
-		}
+		writeToFile(expected);
+
+		Thread.sleep(1500);
 
 		assertTrue(expected.containsAll(strings.get()));
 		session.get().disconnect();
@@ -119,34 +124,58 @@ public class MessagingIntegrationTest {
 
 	@Test
 	public void testClientNotifiedMultipleFileWrites() throws InterruptedException, ExecutionException {
-		RestTemplate resetTemplate = restTemplateBuilder.build();
-		CountDownLatch countDownLatch = new CountDownLatch(2);
-
-
-		String key = resetTemplate.postForObject("http://localhost:{port}/watch", TestUtils.getTextFilePath1().toString(), String.class, this.port);
+		CountDownLatch countDownLatch = new CountDownLatch(1);
+		String key = sendFileWatchRequest();
 
 		ListenableFuture<StompSession> session = this.socketStompClient.connect("ws://localhost:{port}/messaging/",
 				this.headers, new SessionHandler(countDownLatch, key), this.port);
 
  		List<String> expectedLines = new ArrayList<>();
 
+		if (!countDownLatch.await(TIMEOUT, TimeUnit.SECONDS)) {
+			alertConnectionWasNotEstablished();
+		}
+
+
 		IntStream.range(1, 200).forEach(value -> {
 			try {
 				String s = String.valueOf(value);
 				expectedLines.add(s);
-				Files.write(TestUtils.getTextFilePath1(), Arrays.asList(s), StandardOpenOption.APPEND);
+				writeToFile(Arrays.asList(s));
+				log.info("write to file");
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			}
 		});
 
-
-		if (!countDownLatch.await(2, TimeUnit.SECONDS)) {
-			throw new AssertionError("Update of file was not received");
-		}
+		Thread.sleep(1500);
 
 		assertTrue(expectedLines.containsAll(strings.get()));
 		session.get().disconnect();
+	}
+
+	private void alertConnectionWasNotEstablished() {
+		log.error("Connection was not established");
+		throw new AssertionError("Connection was not established");
+	}
+
+	private void writeToFile(List<String> expected) throws IOException {
+		Files.write(TestUtils.getTextFilePath1(), expected, StandardOpenOption.APPEND);
+		log.info("write to file");
+	}
+
+	private String sendFileWatchRequest() {
+		RestTemplate resetTemplate = restTemplateBuilder.build();
+		log.info("send file watch request");
+		String key = resetTemplate.postForObject("http://localhost:{port}/watch", TestUtils.getTextFilePath1().toString(), String.class, this.port);
+		log.info("received file watch response with key {}", key);
+		return key;
+	}
+
+	private void notifyFileConsumed(String key) {
+		RestTemplate restTemplate = restTemplateBuilder.build();
+		restTemplate.postForLocation("http://localhost:{port}/watch/{key}", null, this.port, key);
+		log.info("send file change consumed notification");
 	}
 
 	private class SessionHandler extends StompSessionHandlerAdapter {
@@ -165,6 +194,7 @@ public class MessagingIntegrationTest {
 		@Override
 		public void afterConnected(StompSession session, StompHeaders connectedHeaders) {
 			countDownLatch.countDown();
+			log.info("connected to messaging server");
 
 			if (Objects.nonNull(subscribeKey)) {
 				session.subscribe("/topic/change/" + subscribeKey,
@@ -176,13 +206,13 @@ public class MessagingIntegrationTest {
 
 							@Override
 							public void handleFrame(StompHeaders stompHeaders, Object o) {
+								log.info("handle frame");
 								LogSourceUpdateDto update = (LogSourceUpdateDto) o;
 								strings.set(update.getStrings());
+								notifyFileConsumed(subscribeKey);
 								countDownLatch.countDown();
 							}
 						});
-			} else {
-				session.disconnect();
 			}
 		}
 

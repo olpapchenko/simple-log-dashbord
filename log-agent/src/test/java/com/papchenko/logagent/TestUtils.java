@@ -5,7 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.nio.file.Path;
 
-public class TestUtils {
+public final class TestUtils {
 	private static final String testFilePath1 = "testLogFile1.txt";
 	private static final String testFilePath2 = "testLogFile2.txt";
 
@@ -16,14 +16,14 @@ public class TestUtils {
 		return file.toPath();
 	}
 
-	public Path getTextFilePath2() {
+	public static Path getTextFilePath2() {
  		ClassLoader classLoader = TestUtils.class.getClassLoader();
 		File file = new File(classLoader.getResource(testFilePath2).getFile());
 
 		return file.toPath();
 	}
 
-	public void clearFile(Path file) {
+	public static void clearFile(Path file) {
 		try(PrintWriter writer = new PrintWriter(file.toFile())) {
 			writer.write("");
 		} catch (FileNotFoundException e) {

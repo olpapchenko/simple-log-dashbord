@@ -9,7 +9,7 @@ public interface LogSourceService {
 
     void update(LogSourceDto logSourceDto);
 
-    List<LogSourceDto> getAllLog();
+    List<LogSourceDto> getAllLogSources();
 
     void remove(Long id);
 }

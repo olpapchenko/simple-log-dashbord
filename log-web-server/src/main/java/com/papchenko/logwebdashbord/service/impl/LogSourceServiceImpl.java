@@ -44,7 +44,7 @@ public class LogSourceServiceImpl implements LogSourceService {
     }
 
     @Override
-    public List<LogSourceDto> getAllLog() {
+    public List<LogSourceDto> getAllLogSources() {
 
         List<LogSourceDto> result = new ArrayList<>();
         logSourceRepository.findAll().forEach(logSourceEntity -> {
@@ -60,7 +60,7 @@ public class LogSourceServiceImpl implements LogSourceService {
     }
 
     @PostConstruct
-    private void startHelthCheckLoop() {
+    private void startHealthCheckLoop() {
         executorService.execute(() -> {
 
             while(true) {

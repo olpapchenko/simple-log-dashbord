@@ -7,43 +7,32 @@ import com.papchenko.logagent.service.WatchRegistrationService;
 import com.papchenko.logagent.service.entity.FileLogSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Controller;
 
-import javax.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Controller
 public class WatchFileRegistrationServiceImpl implements WatchRegistrationService<Path> {
 
-    private ExecutorService executor;
     private Set<Path> watchedPaths = new HashSet<>();
     private Set<Path> changedFiles = new HashSet<>();
-    private AtomicBoolean cleanLoopStarted = new AtomicBoolean();
 
     private static final String TOPIC_PATTERN = "/topic/change/%s";
 
-    @Value("${clear.timeout:10000}")
-    private Long clearTimeout;
+    private static final long CLEAN_LOOP_DELAY = 10000L;
 
     @Autowired
     private LogSource<FileLogSource> logSource;
 
     @Autowired
     private SimpMessagingTemplate simpMessagingTemplate;
-
-    public WatchFileRegistrationServiceImpl() {
-        executor = Executors.newSingleThreadExecutor();
-    }
 
     @Override
     public synchronized String registerWatchedFile(Path file) {
@@ -75,33 +64,11 @@ public class WatchFileRegistrationServiceImpl implements WatchRegistrationServic
         simpMessagingTemplate.convertAndSend(String.format(TOPIC_PATTERN, id), new LogSourceUpdateDto(id, data));
     }
 
-    @PostConstruct
+    @Scheduled(fixedDelay = CLEAN_LOOP_DELAY)
     private void startCleaningLoop() {
-        synchronized (cleanLoopStarted) {
-            if (cleanLoopStarted.get()) {
-                log.info("clean loop already started - doing nothing");
-                return ;
-            }
-
-            log.info("start cleaning loop");
-
-            executor.execute(() -> {
-
-                while (true) {
-                    log.info("start cleaning");
-
-                    clearUnusedWatchPaths();
-
-                    try {
-                        Thread.sleep(clearTimeout);
-                    } catch (InterruptedException e) {
-                        log.error("unexpected error occurred", e);
-                        throw new RuntimeException(e);
-                    }
-                }
-            });
-            cleanLoopStarted.set(true);
-        }
+            log.info("start cleaning of unused log watches");
+            clearUnusedWatchPaths();
+            log.info("end cleaning of unused log watches");
     }
 
     private synchronized void clearUnusedWatchPaths() {

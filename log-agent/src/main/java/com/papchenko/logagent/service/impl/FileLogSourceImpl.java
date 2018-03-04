@@ -8,31 +8,23 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class FileLogSourceImpl implements LogSource<FileLogSource> {
 
-    private AtomicBoolean watchLoopStarted = new AtomicBoolean(false);
-    private Executor executor;
+    private static final long CHECK_INTERVAL = 500L;
+
     private WatchService watchService;
-
     private Map<WatchDirectory, List<LogSourceMetaData>> watchedDirectoryToFile = new HashMap<>();
-
-    @Value("${check.interval:500}")
-    private long checkInterval;
 
     @Getter
     @Setter
@@ -62,7 +54,6 @@ public class FileLogSourceImpl implements LogSource<FileLogSource> {
 
     public FileLogSourceImpl() throws IOException {
         watchService = FileSystems.getDefault().newWatchService();
-        executor = Executors.newSingleThreadExecutor();
     }
 
     @Override
@@ -122,23 +113,9 @@ public class FileLogSourceImpl implements LogSource<FileLogSource> {
                 .ifPresent(watchDirectory1 -> watchDirectory1.getWatchKey().cancel());
     }
 
-    @PostConstruct
+    @Scheduled(fixedDelay = CHECK_INTERVAL)
     private synchronized void startWatchLoop() {
-        if (watchLoopStarted.get()) {
-            return;
-        }
-
-        executor.execute(() -> {
-            try {
-                while (true) {
-                    processModifications();
-                    Thread.sleep(checkInterval);
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-        watchLoopStarted.set(true);
+        processModifications();
     }
 
     private synchronized void processModifications() {

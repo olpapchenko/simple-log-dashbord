@@ -53,7 +53,6 @@ public class LogServiceImpl implements LogService {
 
 		watchFileRepository.save(watchFileEntity);
 
-		agentMessagingService
 
 		return fileSourceResponse;
 	}

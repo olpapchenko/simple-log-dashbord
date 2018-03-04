@@ -8,6 +8,7 @@ import com.papchenko.logwebdashbord.utils.Transformer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -59,34 +60,23 @@ public class LogSourceServiceImpl implements LogSourceService {
         logSourceRepository.delete(id);
     }
 
-    @PostConstruct
+    @Scheduled(fixedDelay = 500L)
     private void startHealthCheckLoop() {
-        executorService.execute(() -> {
+            Iterable<LogSourceEntity> all = logSourceRepository.findAll();
 
-            while(true) {
-                Iterable<LogSourceEntity> all = logSourceRepository.findAll();
-
-                all.forEach(logSourceEntity -> {
-                    String url = logSourceEntity.getUrl();
-                    Boolean status = false;
-                    try {
-                        status = restTemplate.getForObject(url + "/status", Boolean.class);
-                    } catch (RestClientException e) {
-                        status = false;
-                        log.info("agent is not working {}", logSourceEntity.getName());
-                    }
-
-                    logSourceEntity.setStatus(status);
-                    logSourceRepository.save(logSourceEntity);
-                });
+            all.forEach(logSourceEntity -> {
+                String url = logSourceEntity.getUrl();
+                Boolean status = false;
 
                 try {
-                    Thread.sleep(healthCheckInterval);
-                } catch (InterruptedException e) {
-                    log.error("error occured during health check");
-                    throw new RuntimeException(e);
+                    status = restTemplate.getForObject(url + "/status", Boolean.class);
+                } catch (RestClientException e) {
+                    status = false;
+                    log.info("agent is not working {}", logSourceEntity.getName());
                 }
-            }
-        });
+
+                logSourceEntity.setStatus(status);
+                logSourceRepository.save(logSourceEntity);
+            });
     }
 }

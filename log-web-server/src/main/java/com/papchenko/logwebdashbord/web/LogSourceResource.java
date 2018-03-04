@@ -15,8 +15,8 @@ public class LogSourceResource {
 	private LogService logService;
 
 	@PostMapping
-	public ResponseEntity<String> watchFile(@RequestBody FileLogDto fileLogSource) {
-		return logService.watchFile(fileLogSource);
+	public void watchFile(@RequestBody FileLogDto fileLogSource) {
+	  	logService.saveWatchFileInfo(fileLogSource);
 	}
 
 	@DeleteMapping("/{watchFileId}")

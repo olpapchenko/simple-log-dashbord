@@ -15,4 +15,10 @@ public class LogAgentSessionHandler extends StompSessionHandlerAdapter {
 		super.handleException(session, command, headers, payload, exception);
 		log.error("Exception occurred during watching file", exception);
 	}
+
+	@Override
+	public void handleTransportError(StompSession session, Throwable exception) {
+		super.handleTransportError(session, exception);
+		log.error("Transport error occurred", exception);
+	}
 }

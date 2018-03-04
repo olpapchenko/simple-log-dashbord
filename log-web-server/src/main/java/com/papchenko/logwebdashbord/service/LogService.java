@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity;
 import java.util.List;
 
 public interface LogService {
-	ResponseEntity<String> watchFile(FileLogDto file);
+	void saveWatchFileInfo(FileLogDto file);
 
 	List<FileLogDto> getAllWatchFiles(Long logAgentId);
 

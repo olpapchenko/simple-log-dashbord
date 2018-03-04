@@ -7,24 +7,22 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
+import com.papchenko.logwebdashbord.repository.LogSourceRepository;
+import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.converter.MappingJackson2MessageConverter;
+import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.stomp.StompFrameHandler;
 import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
-import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.concurrent.ListenableFuture;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.socket.client.WebSocketClient;
-import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 
 import com.papchenko.logwebdashbord.dto.LogSourceUpdateDto;
 import com.papchenko.logwebdashbord.entity.LogSourceEntity;
 import com.papchenko.logwebdashbord.entity.WatchFileEntity;
-import com.papchenko.logwebdashbord.repository.LogAgentRepository;
 import com.papchenko.logwebdashbord.repository.WatchFileRepository;
 import com.papchenko.logwebdashbord.service.AgentMessagingService;
 import com.papchenko.logwebdashbord.service.LogContentAlert;
@@ -45,51 +43,44 @@ public class AgentMessagingServiceImpl implements AgentMessagingService {
 	private WatchFileRepository watchFileRepository;
 
 	@Autowired
-	private RestTemplate restTemplate;
+	private ObjectFactory<WebSocketStompClient> webSocketStompClientObjectFactory;
 
 	@Autowired
-	private LogAgentRepository logAgentRepository;
+	private LogSourceRepository logSourceRepository;
+
+	@Autowired
+	private RestTemplate restTemplate;
 
 	@Override
-	public void connectAgent(Long agentId, String url) {
-		log.debug("connect new agent agent id {}, agent url {}", agentId, url);
-		WebSocketClient webSocketClient = new StandardWebSocketClient();
+	public void connectWithLogSource(Long logSourceId) {
 
-		WebSocketStompClient stompClient = new WebSocketStompClient(webSocketClient);
-		stompClient.setMessageConverter(new MappingJackson2MessageConverter());
-		stompClient.setTaskScheduler(new ConcurrentTaskScheduler());
+		LogSourceEntity logSource = logSourceRepository.findOne(logSourceId);
+		log.debug("connect new agent agent id {}, agent url {}", logSourceId, logSource.getUrl());
+		WebSocketStompClient stompClient = webSocketStompClientObjectFactory.getObject();
 
-		ListenableFuture<StompSession> stompSessionFuture = stompClient.connect(url, new LogAgentSessionHandler());
-		agentIdToStompSession.put(agentId, stompSessionFuture);
+		ListenableFuture<StompSession> stompSessionFuture = stompClient.connect(logSource.getUrl(),
+				new LogAgentSessionHandler());
+		agentIdToStompSession.put(logSourceId, stompSessionFuture);
 	}
 
 	@Override
-	public void disconnect(Long agentId) {
-		StompSession stompSession = null;
-		try {
-			stompSession = agentIdToStompSession.get(agentId).get();
-		}
-		catch (ExecutionException | InterruptedException e) {
-			throw new RuntimeException(e);
-		}
-
-		stompSession.disconnect();
-		log.debug("agent disconnected {}", agentId);
+	public void disconnect(Long logAgentId) {
+		getStompSession(logAgentId).disconnect();
+		log.debug("agent disconnected {}", logAgentId);
 	}
 
 	@Override
-	public void watchFile(Long agentId, String logFileKey) {
-		ListenableFuture<StompSession> stompSessionListenableFuture = agentIdToStompSession.get(agentId);
+	public void watchFile(Long logSourceId, Long watchFileId) {
+		StompSession stompSession = getStompSession(logSourceId);
 
-		StompSession stompSession = null;
-		try {
-			stompSession = stompSessionListenableFuture.get();
-		}
-		catch (InterruptedException | ExecutionException e) {
-			throw new RuntimeException(e);
-		}
+		LogSourceEntity logSource = logSourceRepository.findOne(logSourceId);
+		WatchFileEntity watchFile = watchFileRepository.findOne(watchFileId);
 
-		LogSourceEntity agent = logAgentRepository.findOne(agentId);
+		ResponseEntity<String> registerForWatchingResponse = restTemplate.postForEntity(logSource.getUrl() + "/watch",
+				watchFile.getPath(), String.class);
+		//todo throw exception if response code is non 200
+		String logFileKey = registerForWatchingResponse.getBody();
+
 		stompSession.subscribe(String.format(TOPIC_PATTERN, logFileKey),
 				new StompFrameHandler() {
 					@Override
@@ -101,7 +92,7 @@ public class AgentMessagingServiceImpl implements AgentMessagingService {
 					public void handleFrame(StompHeaders stompHeaders, Object o) {
 						LogSourceUpdateDto updateDto = (LogSourceUpdateDto) o;
 						runAlerts(updateDto);
-						restTemplate.put(agent.getUrl() + "/" + logFileKey, new Object());
+						sendNotificationLogChangeConsumed(logSource.getUrl(), logFileKey);
 					}
 				});
 	}
@@ -117,10 +108,21 @@ public class AgentMessagingServiceImpl implements AgentMessagingService {
 				.map(Severity::ordinal)
 				.max(Integer::compareTo);
 
-		Severity severity1 = maxSeverity.map(severity -> {
-			return Severity.values()[severity];
-		}).orElseGet(() -> null);
+		Severity maxSeverityEnum = maxSeverity.map(severity -> Severity.values()[severity]).orElseGet(() -> null);
 
-		watchFileEntity.setSeverity(severity1);
+		watchFileEntity.setSeverity(maxSeverityEnum);
  	}
+
+	private StompSession getStompSession(Long logSourceId) {
+		try {
+			return agentIdToStompSession.get(logSourceId).get();
+		}
+		catch (InterruptedException | ExecutionException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	private void sendNotificationLogChangeConsumed(String url, String logFileKey) {
+		restTemplate.postForLocation(url + "/{key}", null,  logFileKey);
+	}
 }

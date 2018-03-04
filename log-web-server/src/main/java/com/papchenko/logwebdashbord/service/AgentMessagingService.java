@@ -1,9 +1,9 @@
 package com.papchenko.logwebdashbord.service;
 
 public interface AgentMessagingService {
-	  void connectAgent(Long agentId, String url);
+	  void connectWithLogSource(Long logSourceId);
 
-	  void disconnect(Long agentId);
+	  void disconnect(Long logSourceId);
 
-	  void watchFile(Long agentId, String logFileKey);
+	  void watchFile(Long logSourceId, Long watchFileId);
 }

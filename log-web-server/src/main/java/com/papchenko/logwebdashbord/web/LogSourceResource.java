@@ -1,12 +1,9 @@
 package com.papchenko.logwebdashbord.web;
 
+import com.papchenko.logwebdashbord.dto.FileLogDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.papchenko.logwebdashbord.service.LogService;
 
@@ -17,11 +14,9 @@ public class LogSourceResource {
 	@Autowired
 	private LogService logService;
 
-	@PostMapping("/{logAgentId}/{path}/{name}")
-	public ResponseEntity<String> watchFile(@PathVariable("logAgentId") Long logAgentId,
-			@PathVariable("path") String path,
-			@PathVariable("name") String name) {
-		return logService.watchFile(logAgentId, path, name);
+	@PostMapping
+	public ResponseEntity<String> watchFile(@RequestBody FileLogDto fileLogSource) {
+		return logService.watchFile(fileLogSource);
 	}
 
 	@DeleteMapping("/{watchFileId}")

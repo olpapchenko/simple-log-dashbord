@@ -10,10 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import javax.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -35,33 +35,43 @@ public class LogSourceServiceImpl implements LogSourceService {
     private long healthCheckInterval;
 
     @Override
+    @Transactional
     public void save(LogSourceDto logSourceDto) {
+        log.debug("saving new log source {}", logSourceDto.getUrl());
         logSourceRepository.save(Transformer.toLogSourceEntity(logSourceDto));
     }
 
     @Override
+    @Transactional
     public void update(LogSourceDto logSourceDto) {
+        log.debug("updating new log source {}", logSourceDto.getUrl());
         logSourceRepository.save(Transformer.toLogSourceEntity(logSourceDto));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<LogSourceDto> getAllLogSources() {
 
-        List<LogSourceDto> result = new ArrayList<>();
+        List<LogSourceDto> logSources = new ArrayList<>();
         logSourceRepository.findAll().forEach(logSourceEntity -> {
-            result.add(Transformer.toLogSourceDto(logSourceEntity));
+            logSources.add(Transformer.toLogSourceDto(logSourceEntity));
         });
 
-        return result;
+        log.debug("getting log sources count {}", logSources.size());
+        return logSources;
     }
 
     @Override
+    @Transactional
     public void remove(Long id) {
+        log.debug("removing log source with id {}", id);
         logSourceRepository.delete(id);
     }
 
     @Scheduled(fixedDelay = 500L)
+    @Transactional
     private void startHealthCheckLoop() {
+            log.debug("running health check");
             Iterable<LogSourceEntity> all = logSourceRepository.findAll();
 
             all.forEach(logSourceEntity -> {

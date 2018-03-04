@@ -1,7 +1,9 @@
 package com.papchenko.logwebdashbord.utils;
 
+import com.papchenko.logwebdashbord.dto.FileLogDto;
 import com.papchenko.logwebdashbord.dto.LogSourceDto;
 import com.papchenko.logwebdashbord.entity.LogSourceEntity;
+import com.papchenko.logwebdashbord.entity.WatchFileEntity;
 
 public final class Transformer {
 
@@ -28,5 +30,15 @@ public final class Transformer {
         logSourceDto.setUrl(logSourceEntity.getUrl());
 
         return logSourceDto;
+    }
+
+    public static FileLogDto toFileLogDto(WatchFileEntity watchFileEntity) {
+        FileLogDto dto = new FileLogDto();
+
+        dto.setName(watchFileEntity.getName());
+        dto.setLogSourceId(watchFileEntity.getLogSourceEntity().getId());
+        dto.setPath(watchFileEntity.getPath());
+
+        return dto;
     }
 }

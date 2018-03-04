@@ -1,29 +1,37 @@
 package com.papchenko.logwebdashbord.web;
 
-import com.papchenko.logwebdashbord.dto.FileLogDto;
+import com.papchenko.logwebdashbord.dto.LogSourceDto;
+import com.papchenko.logwebdashbord.service.LogAgentService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.papchenko.logwebdashbord.service.LogService;
+import javax.websocket.server.PathParam;
+import java.util.List;
 
 @RestController
 @RequestMapping("logsource")
 public class LogSourceResource {
 
-	@Autowired
-	private LogService logService;
+    @Autowired
+    private LogAgentService logSourceService;
 
-	@PostMapping
-	public void watchFile(@RequestBody FileLogDto fileLogSource) {
-	  	logService.saveWatchFileInfo(fileLogSource);
-	}
+    @PostMapping
+    public void save(LogSourceDto logSourceDto) {
+        logSourceService.save(logSourceDto);
+    }
 
-	@DeleteMapping("/{watchFileId}")
-	public void removeWatchFile( @PathVariable("watchSourceId") Long watchFileId) {
-		logService.removeWatchFile(watchFileId);
-	}
+    @PutMapping
+    public void update(LogSourceDto logSourceDto) {
+        logSourceService.update(logSourceDto);
+    }
 
+    @DeleteMapping("/{id}")
+    public void remove(@PathParam("id") Long id) {
+        logSourceService.remove(id);
+    }
 
-
+    @GetMapping(path = "/all")
+    public List<LogSourceDto> all() {
+        return logSourceService.getAllLog();
+    }
 }
